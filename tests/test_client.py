@@ -59,3 +59,34 @@ def test_client_map_with_failures(run_worker):
     assert results == expected
 
     client.close()
+
+def test_client_batching_for_large_jobs(run_worker):
+    """Test that large jobs are split into batches."""
+    import requests
+    from unittest.mock import patch
+    import math
+
+    # Set a low RAM limit on the worker
+    requests.post(f"{run_worker}/testing/update_settings", json={"max_ram_gb": 0.0001})
+
+    client = Client([run_worker])
+
+    # This job will be larger than the RAM limit
+    inputs = [list(range(10000)) for _ in range(5)]
+
+    with patch.object(client, '_run_worker_job', wraps=client._run_worker_job) as spy:
+        results = client.map(len, inputs)
+
+        job_size_gb = client._estimate_job_size(len, inputs)
+        # We need to access the worker's settings for the correct assertion
+        worker_max_ram = client.worker_clients[0].max_ram_gb
+        expected_batches = math.ceil(job_size_gb / worker_max_ram)
+
+        assert spy.call_count == expected_batches
+
+    assert results == [10000] * 5
+
+    # Reset RAM limit
+    requests.post(f"{run_worker}/testing/update_settings", json={"max_ram_gb": None})
+
+    client.close()

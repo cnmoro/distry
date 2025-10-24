@@ -24,6 +24,9 @@ from distry.exceptions import DistryError
 app = FastAPI(title="Distry Worker", version="0.1.0")
 
 # Worker state
+SETTINGS = {
+    "max_ram_gb": None
+}
 executor = ThreadPoolExecutor(max_workers=4)
 active_jobs: Dict[str, Tuple[Callable, List[Tuple[int, Any]], Queue]] = {}
 result_queues: Dict[str, Queue] = {}
@@ -264,7 +267,8 @@ async def get_status():
         "running_jobs": list(active_jobs.keys()),
         "completed_jobs": len(completed_jobs),
         "max_workers": executor._max_workers,
-        "installed_packages": list(installed_packages)
+        "installed_packages": list(installed_packages),
+        "settings": SETTINGS
     }
 
 @app.get("/health")
@@ -276,6 +280,14 @@ async def health_check():
 async def get_installed_packages():
     """List installed packages."""
     return {"packages": list(installed_packages)}
+
+
+@app.post("/testing/update_settings")
+async def testing_update_settings(settings: Dict):
+    """(For testing only) Update worker settings."""
+    SETTINGS.update(settings)
+    return {"status": "updated", "settings": SETTINGS}
+
 
 class WorkerServer:
     """Worker server wrapper."""
@@ -321,11 +333,29 @@ class WorkerServer:
 
 import click
 
+def parse_ram(ram_str: str) -> float:
+    """Parse RAM string like '5g', '512m' to GB."""
+    ram_str = ram_str.lower().strip()
+    if ram_str.endswith('g'):
+        return float(ram_str[:-1])
+    elif ram_str.endswith('m'):
+        return float(ram_str[:-1]) / 1024
+    elif ram_str.endswith('gb'):
+        return float(ram_str[:-2])
+    elif ram_str.endswith('mb'):
+        return float(ram_str[:-2]) / 1024
+    return float(ram_str)
+
 @click.command()
 @click.option("--host", default="127.0.0.1", help="Host to bind to.")
 @click.option("--port", default=8000, help="Port to bind to.")
-def main(host, port):
+@click.option("--max-ram", default=None, help="Max RAM usage (e.g. '4g', '512m').")
+def main(host, port, max_ram):
     """Run a Distry worker."""
+    if max_ram:
+        SETTINGS["max_ram_gb"] = parse_ram(max_ram)
+        print(f"RAM limit set to {SETTINGS['max_ram_gb']:.2f} GB")
+
     print(f"Starting Distry worker on {host}:{port}...")
     ws = WorkerServer(host=host, port=port)
     ws.run()
