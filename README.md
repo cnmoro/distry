@@ -45,8 +45,9 @@ from distry import Client
 client = Client(["http://127.0.0.1:8001", "http://127.0.0.1:8002"])
 
 # Define function (any Python function works!)
+import numpy as np
+
 def process_data(x):
-    import numpy as np  # Will auto-install on workers
     return np.mean([x, x**2, x**3])
 
 # Process inputs in parallel
@@ -64,13 +65,13 @@ For simpler cases where you want to execute a single function call on a worker, 
 
 ```python
 from distry import register_workers, distry
+import numpy as np
 
 # Connect to workers
 register_workers(["http://127.0.0.1:8001", "http://127.0.0.1:8002"])
 
 @distry
 def process_data(x, power=2):
-    import numpy as np  # Will auto-install on workers
     return np.mean([x, x**power])
 
 # Process a single input on a randomly selected worker

@@ -90,3 +90,16 @@ def test_client_batching_for_large_jobs(run_worker):
     requests.post(f"{run_worker}/testing/update_settings", json={"max_ram_gb": None})
 
     client.close()
+
+def test_import_extraction():
+    """Test extraction of inline and module-level imports."""
+    from distry.client import extract_imports_from_function
+    import numpy
+    import pandas as pd
+
+    def my_func(x):
+        import scipy
+        return numpy.mean(x) + pd.Series(x).mean() + scipy.pi
+
+    packages = extract_imports_from_function(my_func)
+    assert set(packages) == {'numpy', 'pandas', 'scipy'}
