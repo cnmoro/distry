@@ -12,13 +12,19 @@ import cloudpickle
 from .exceptions import DistryError, WorkerUnavailableError, JobFailedError, WorkerCommunicationError
 
 def extract_imports_from_function(func: Callable) -> list[str]:
-    """Extract required packages from function source."""
+    """Extract required packages from function source and global scope."""
     import inspect
     import ast
+    import sys
+    import textwrap
     
     imports = set()
+
+    # 1. Parse function source for inline imports
     try:
         source = inspect.getsource(func)
+        # Dedent the source code to handle nested functions
+        source = textwrap.dedent(source)
         tree = ast.parse(source)
         
         for node in ast.walk(tree):
@@ -30,11 +36,34 @@ def extract_imports_from_function(func: Callable) -> list[str]:
                 if node.module:
                     package = node.module.split('.')[0]
                     imports.add(package)
-    except Exception:
+    except (TypeError, OSError):
+        # Could fail for dynamically generated functions, etc.
         pass
+
+    # 2. Inspect closure and global namespace for modules used by the function
+    if hasattr(func, '__code__'):
+        try:
+            closure_vars = inspect.getclosurevars(func)
+
+            # Check non-local variables from closure
+            for module in closure_vars.nonlocals.values():
+                if inspect.ismodule(module):
+                    package_name = module.__name__.split('.')[0]
+                    imports.add(package_name)
+
+            # Check global variables used by the function
+            for name in func.__code__.co_names:
+                if name in closure_vars.globals and inspect.ismodule(closure_vars.globals[name]):
+                    module = closure_vars.globals[name]
+                    package_name = module.__name__.split('.')[0]
+                    imports.add(package_name)
+        except Exception:
+            pass
+
+    # Filter out built-in modules
+    builtins = set(sys.builtin_module_names)
+    builtins.update({'sys', 'os', 'time', 'math', 'random', 'json'})
     
-    # Filter common built-ins
-    builtins = {'sys', 'os', 'time', 'math', 'random', 'json'}
     return list(imports - builtins)
 
 class WorkerClient:
