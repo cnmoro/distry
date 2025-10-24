@@ -29,6 +29,7 @@ active_jobs: Dict[str, Tuple[Callable, List[Tuple[int, Any]], Queue]] = {}
 result_queues: Dict[str, Queue] = {}
 completed_jobs: Dict[str, Dict] = {}
 installed_packages: Set[str] = set()
+job_semaphore = asyncio.Semaphore(1)
 
 class JobStatus(str, Enum):
     RUNNING = "running"
@@ -134,7 +135,7 @@ async def start_job(request: StartJobRequest):
     active_jobs[job_id] = (func, request.inputs, result_queue)
     
     # Start processing
-    asyncio.create_task(process_job(job_id))
+    asyncio.create_task(process_job_queued(job_id))
     
     return {
         "status": "started",
@@ -142,6 +143,11 @@ async def start_job(request: StartJobRequest):
         "total_inputs": len(request.inputs),
         "packages": packages_to_check
     }
+
+async def process_job_queued(job_id: str):
+    """Acquire semaphore and then process job."""
+    async with job_semaphore:
+        await process_job(job_id)
 
 async def process_job(job_id: str):
     """Process job inputs in background."""
