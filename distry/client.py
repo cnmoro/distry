@@ -9,7 +9,7 @@ from typing import Callable, List, Any, Optional, Dict, Tuple
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import cloudpickle
-from .exceptions import DistryError, WorkerUnavailableError, JobFailedError
+from .exceptions import DistryError, WorkerUnavailableError, JobFailedError, WorkerCommunicationError
 
 def extract_imports_from_function(func: Callable) -> list[str]:
     """Extract required packages from function source."""
