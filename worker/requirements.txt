@@ -1,0 +1,4 @@
+fastapi
+uvicorn[standard]
+cloudpickle
+pydantic==2.11.7
