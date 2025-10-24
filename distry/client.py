@@ -241,6 +241,45 @@ class Client:
         print(f"Completed {completed_count}/{len(inputs)} inputs")
         return results
     
+    def run(
+        self,
+        func: Callable,
+        args: Tuple = (),
+        kwargs: Dict = {},
+        timeout: int = 60,
+        required_packages: Optional[List[str]] = None
+    ) -> Any:
+        """Execute a single function on a worker."""
+        if not self.worker_clients:
+            raise WorkerUnavailableError("No workers available")
+
+        # Create a wrapper function to handle args and kwargs
+        def func_wrapper(data):
+            return func(*data['args'], **data['kwargs'])
+
+        inputs = [{'args': args, 'kwargs': kwargs}]
+
+        # Auto-detect packages
+        if required_packages is None:
+            required_packages = extract_imports_from_function(func)
+
+        worker = random.choice(self.worker_clients)
+        job_id = f"job_{int(time.time())}_{random.randint(1000, 9999)}"
+
+        # The input format for _run_worker_job is List[Tuple[int, Any]]
+        worker_inputs = list(enumerate(inputs))
+
+        result = self._run_worker_job(
+            worker, job_id, func_wrapper, worker_inputs,
+            timeout, required_packages
+        )
+
+        if result and result['results']:
+            # Result is [(0, <return_value>)]
+            return result['results'][0][1]
+
+        raise JobFailedError("Job did not return a result")
+
     def _run_worker_job_batched(
         self,
         worker: WorkerClient,
