@@ -10,7 +10,7 @@ import sys
 import importlib
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-from typing import Callable, List, Any, Dict, Tuple, Set
+from typing import Callable, List, Any, Dict, Tuple, Set, Union
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 import cloudpickle
@@ -47,7 +47,7 @@ class JobInfo(BaseModel):
     status: JobStatus
     completed: int
     total: int
-    results: List[Tuple[int, Any]]
+    results: List[Union[Tuple[int, Any], Tuple[int, None, str, str]]]
 
 def install_package(package_name: str) -> bool:
     """Install Python package using pip."""
@@ -182,9 +182,11 @@ async def process_job(job_id: str):
             del result_queues[job_id]
         
         completed_jobs[job_id] = {
+            "job_id": job_id,
             "status": JobStatus.COMPLETED,
-            "results": results,
+            "completed": completed_count,
             "total": total_inputs,
+            "results": results,
             "completion_time": time.time()
         }
         
