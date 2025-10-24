@@ -91,3 +91,71 @@ def test_submit_job_and_get_results(run_worker):
     for i in range(5):
         assert results[i][0] == i
         assert results[i][1] == i + 1
+
+def task_that_returns_time(duration):
+    """A simple task that sleeps and returns timestamps."""
+    start = time.time()
+    time.sleep(duration)
+    end = time.time()
+    return start, end
+
+def test_job_queueing(run_worker):
+    """Test that jobs are queued and processed sequentially."""
+    worker_url = run_worker
+
+    # Job 1
+    pickled_func_1 = cloudpickle.dumps(task_that_returns_time)
+    encoded_func_1 = base64.b64encode(pickled_func_1).decode('utf-8')
+    job_1_payload = {
+        "job_id": "job_1",
+        "function": encoded_func_1,
+        "inputs": [(0, 1)],
+        "required_packages": []
+    }
+
+    # Job 2
+    pickled_func_2 = cloudpickle.dumps(task_that_returns_time)
+    encoded_func_2 = base64.b64encode(pickled_func_2).decode('utf-8')
+    job_2_payload = {
+        "job_id": "job_2",
+        "function": encoded_func_2,
+        "inputs": [(0, 1)],
+        "required_packages": []
+    }
+
+    # Start both jobs
+    start_response_1 = requests.post(f"{worker_url}/start_job", json=job_1_payload)
+    assert start_response_1.status_code == 200
+    start_response_2 = requests.post(f"{worker_url}/start_job", json=job_2_payload)
+    assert start_response_2.status_code == 200
+
+    # Wait for both jobs to complete
+    job_1_results = None
+    job_2_results = None
+
+    for _ in range(40):
+        if not job_1_results:
+            results_response_1 = requests.get(f"{worker_url}/results/job_1")
+            if results_response_1.json()["status"] == "completed":
+                job_1_results = results_response_1.json()
+
+        if not job_2_results:
+            results_response_2 = requests.get(f"{worker_url}/results/job_2")
+            if results_response_2.json()["status"] == "completed":
+                job_2_results = results_response_2.json()
+
+        if job_1_results and job_2_results:
+            break
+
+        time.sleep(0.1)
+
+    assert job_1_results is not None, "Job 1 did not complete in time"
+    assert job_2_results is not None, "Job 2 did not complete in time"
+
+    # Verify that job 2 started after job 1 finished
+    job_1_start_time = job_1_results["results"][0][1][0]
+    job_1_end_time = job_1_results["results"][0][1][1]
+    job_2_start_time = job_2_results["results"][0][1][0]
+    job_2_end_time = job_2_results["results"][0][1][1]
+
+    assert job_2_start_time >= job_1_end_time
