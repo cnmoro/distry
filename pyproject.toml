@@ -3,12 +3,12 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "distry"
-version = "0.1.0"
+name = "distry-py"
+version = "0.1.2"
 description = "Distributed task execution framework"
-authors = [{name = "Your Name", email = "your.email@example.com"}]
+authors = [{name = "Carlo Moro"}]
 license = {text = "MIT"}
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.8"
 keywords = ["distributed", "computing", "parallel", "processing"]
 classifiers = [
@@ -26,7 +26,7 @@ classifiers = [
 distry-worker = "distry.worker:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/distry"
+Homepage = "https://github.com/cnmoro/distry"
 
 [project.optional-dependencies]
 client = ["requests", "cloudpickle"]

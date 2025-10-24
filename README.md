@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" alt="Logo" width="220" />
+
 ## Distry
 
 Distributed task execution framework. Scale your Python functions across multiple workers.
@@ -15,13 +17,13 @@ Distributed task execution framework. Scale your Python functions across multipl
 
 ```plaintext
 # Client only (for task submission)
-pip install distry[client]
+pip install distry-py[client]
 
 # Worker only (for task execution)
-pip install distry[worker]
+pip install distry-py[worker]
 
 # Full installation
-pip install distry[all]
+pip install distry-py[all]
 ```
 
 ## Quick Start
