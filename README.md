@@ -7,6 +7,7 @@ Distributed task execution framework. Scale your Python functions across multipl
 * **Zero-config setup** - Auto-detects and installs dependencies
 * **Simple API** - Just `client.map(func, inputs)`
 * **Fault-tolerant** - Handles worker failures gracefully
+* **Automatic Job Batching** - Large jobs are automatically split to fit worker RAM limits.
 * **Package management** - Installs required packages on workers
 * **Global indexing** - Results returned in input order
 
@@ -31,8 +32,8 @@ pip install distry[all]
 # Terminal 1 - Worker 1
 distry-worker --port 8001
 
-# Terminal 2 - Worker 2  
-distry-worker --port 8002
+# Terminal 2 - Worker 2 (with RAM limit)
+distry-worker --port 8002 --max-ram 2g
 ```
 
 ### 2. Run Tasks
@@ -129,7 +130,10 @@ server.run()
 ```plaintext
 # Start worker
 distry-worker --help
-distry-worker --host 0.0.0.0 --port 8000
+distry-worker --host 0.0.0.0 --port 8000 --max-ram 4g
+
+# The client will automatically split large jobs into batches
+# to fit the worker's RAM limit.
 
 # View worker endpoints
 # GET /health
