@@ -58,6 +58,32 @@ print(results)
 client.close()
 ```
 
+### 2b. Using the Decorator (for single function calls)
+
+For simpler cases where you want to execute a single function call on a worker, you can use the `@distry` decorator.
+
+```python
+from distry import register_workers, distry
+
+# Connect to workers
+register_workers(["http://127.0.0.1:8001", "http://127.0.0.1:8002"])
+
+@distry
+def process_data(x, power=2):
+    import numpy as np  # Will auto-install on workers
+    return np.mean([x, x**power])
+
+# Process a single input on a randomly selected worker
+result = process_data(10)
+print(result)
+# 55.0
+
+# With keyword arguments
+result_power_3 = process_data(10, power=3)
+print(result_power_3)
+# 505.0
+```
+
 ### 3. Advanced Usage
 
 ```python
