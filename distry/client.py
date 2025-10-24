@@ -44,6 +44,7 @@ class WorkerClient:
         self.base_url = base_url.rstrip('/')
         self.session = requests.Session()
         self.session.headers.update({'Content-Type': 'application/json'})
+        self.max_ram_gb = None
     
     def start_job(
         self, 
@@ -89,13 +90,22 @@ class WorkerClient:
         except requests.RequestException as e:
             raise WorkerCommunicationError(f"Failed to get results: {e}")
     
+    def get_status(self) -> Dict:
+        """Get worker status."""
+        try:
+            response = self.session.get(f"{self.base_url}/status", timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            raise WorkerCommunicationError(f"Failed to get status: {e}")
+
     def health_check(self) -> bool:
         """Check worker health."""
         try:
-            response = self.session.get(f"{self.base_url}/health", timeout=5)
-            response.raise_for_status()
-            return response.json().get("status") == "healthy"
-        except:
+            status = self.get_status()
+            self.max_ram_gb = status.get("settings", {}).get("max_ram_gb")
+            return True
+        except WorkerCommunicationError:
             return False
 
 class Client:
@@ -121,8 +131,8 @@ class Client:
             for future in as_completed(futures):
                 url = futures[future]
                 try:
-                    if future.result(timeout=10):
-                        worker_client = WorkerClient(url)
+                    worker_client = future.result(timeout=10)
+                    if worker_client:
                         healthy_workers.append(worker_client)
                         print(f"✓ Worker {url} ready")
                 except Exception as e:
@@ -132,10 +142,23 @@ class Client:
         if not self.worker_clients:
             raise WorkerUnavailableError("No healthy workers available")
     
-    def _test_worker(self, url: str) -> bool:
+    def _test_worker(self, url: str) -> Optional[WorkerClient]:
         """Test single worker health."""
-        return WorkerClient(url).health_check()
+        client = WorkerClient(url)
+        if client.health_check():
+            return client
+        return None
     
+    def _estimate_job_size(self, func: Callable, inputs: List[Any]) -> float:
+        """Estimate job size in GB."""
+        try:
+            pickled_func = cloudpickle.dumps(func)
+            pickled_inputs = cloudpickle.dumps(inputs)
+            total_size_bytes = len(pickled_func) + len(pickled_inputs)
+            return total_size_bytes / (1024**3)
+        except Exception:
+            return 0.0
+
     def _distribute_inputs(self, inputs: List[Any], n_workers: int) -> List[List[Tuple[int, Any]]]:
         """Distribute inputs across workers."""
         if n_workers == 0:
@@ -193,11 +216,11 @@ class Client:
         with ThreadPoolExecutor(max_workers=len(job_configs)) as executor:
             futures = {
                 executor.submit(
-                    self._run_worker_job,
-                    worker, job_id, func, worker_inputs,
+                    self._run_worker_job_batched,
+                    worker, job_id_base, func, worker_inputs,
                     timeout_per_input, required_packages
-                ): (worker, job_id)
-                for worker, job_id, worker_inputs in job_configs
+                ): (worker, job_id_base)
+                for i, (worker, job_id, worker_inputs) in enumerate(job_configs)
             }
             
             for future in as_completed(futures):
@@ -218,6 +241,57 @@ class Client:
         print(f"Completed {completed_count}/{len(inputs)} inputs")
         return results
     
+    def _run_worker_job_batched(
+        self,
+        worker: WorkerClient,
+        job_id_base: str,
+        func: Callable,
+        worker_inputs: List[Tuple[int, Any]],
+        timeout_per_input: int,
+        required_packages: Optional[List[str]] = None
+    ) -> Optional[Dict]:
+        """Execute job on worker, splitting into batches if needed."""
+        if worker.max_ram_gb is None:
+            return self._run_worker_job(
+                worker, job_id_base, func, worker_inputs,
+                timeout_per_input, required_packages
+            )
+
+        job_size_gb = self._estimate_job_size(func, [i[1] for i in worker_inputs])
+
+        if job_size_gb <= worker.max_ram_gb:
+            return self._run_worker_job(
+                worker, job_id_base, func, worker_inputs,
+                timeout_per_input, required_packages
+            )
+
+        # Split job into batches
+        import math
+        num_batches = math.ceil(job_size_gb / worker.max_ram_gb)
+        batch_size = math.ceil(len(worker_inputs) / num_batches)
+
+        print(
+            f"Job for {worker.base_url} is too large ({job_size_gb:.2f} GB > "
+            f"{worker.max_ram_gb:.2f} GB). Splitting into {num_batches} batches."
+        )
+
+        all_results = []
+        for i in range(num_batches):
+            batch_inputs = worker_inputs[i * batch_size : (i + 1) * batch_size]
+            if not batch_inputs:
+                continue
+
+            batch_job_id = f"{job_id_base}_b{i}"
+            batch_result = self._run_worker_job(
+                worker, batch_job_id, func, batch_inputs,
+                timeout_per_input, required_packages
+            )
+
+            if batch_result:
+                all_results.extend(batch_result["results"])
+
+        return {"results": all_results}
+
     def _run_worker_job(
         self,
         worker: WorkerClient,
@@ -238,14 +312,15 @@ class Client:
             total_inputs = start_response["total_inputs"]
             
             while len(results) < total_inputs:
-                if time.time() - start_time > timeout_per_input * 2:
+                if time.time() - start_time > timeout_per_input * total_inputs:
                     raise TimeoutError(f"Worker {worker.base_url} timeout")
                 
                 worker_results = worker.get_results(job_id)
                 
-                for result in worker_results["results"]:
-                    if result not in results:
-                        results.append(result)
+                # Use a set for efficient checking of existing results
+                result_ids = {r[0] for r in results}
+                new_results = [r for r in worker_results["results"] if r[0] not in result_ids]
+                results.extend(new_results)
                 
                 if worker_results["status"] == "completed":
                     break

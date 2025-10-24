@@ -159,3 +159,29 @@ def test_job_queueing(run_worker):
     job_2_end_time = job_2_results["results"][0][1][1]
 
     assert job_2_start_time >= job_1_end_time
+
+def test_parse_ram_settings():
+    """Test parsing of --max-ram parameter."""
+    from distry.worker import main as worker_main
+    from click.testing import CliRunner
+    from distry.worker import SETTINGS
+    from unittest.mock import patch
+
+    runner = CliRunner()
+
+    with patch("uvicorn.run") as mock_run:
+        # Test with 'g'
+        result = runner.invoke(worker_main, ["--max-ram", "5g"], catch_exceptions=False)
+        assert SETTINGS["max_ram_gb"] == 5.0
+
+        # Test with 'm'
+        result = runner.invoke(worker_main, ["--max-ram", "512m"], catch_exceptions=False)
+        assert SETTINGS["max_ram_gb"] == 0.5
+
+        # Test with 'gb'
+        result = runner.invoke(worker_main, ["--max-ram", "2gb"], catch_exceptions=False)
+        assert SETTINGS["max_ram_gb"] == 2.0
+
+        # Test float
+        result = runner.invoke(worker_main, ["--max-ram", "1.5"], catch_exceptions=False)
+        assert SETTINGS["max_ram_gb"] == 1.5
