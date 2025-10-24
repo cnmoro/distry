@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "distry-py"
-version = "0.1.2"
+version = "0.2.0"
 description = "Distributed task execution framework"
 authors = [{name = "Carlo Moro"}]
 license = {text = "MIT"}
@@ -48,3 +48,6 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "-v --strict-markers"
+
+[tool.setuptools]
+packages = ["distry"]
