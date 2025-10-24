@@ -2,6 +2,38 @@
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "distry"
+version = "0.1.0"
+description = "Distributed task execution framework"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["distributed", "computing", "parallel", "processing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.scripts]
+distry-worker = "distry.worker:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/distry"
+
+[project.optional-dependencies]
+client = ["requests", "cloudpickle"]
+worker = ["fastapi", "uvicorn[standard]", "cloudpickle", "pydantic"]
+dev = ["pytest", "pytest-asyncio", "requests", "black", "flake8", "mypy"]
+all = ["requests", "cloudpickle", "fastapi", "uvicorn[standard]", "cloudpickle", "pydantic"]
+
 [tool.black]
 line-length = 88
 target-version = ['py38']

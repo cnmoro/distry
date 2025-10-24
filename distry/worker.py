@@ -312,3 +312,17 @@ class WorkerServer:
         """Stop the server."""
         if self.server and self.server.is_alive():
             self.server.join(timeout=5)
+
+import click
+
+@click.command()
+@click.option("--host", default="127.0.0.1", help="Host to bind to.")
+@click.option("--port", default=8000, help="Port to bind to.")
+def main(host, port):
+    """Run a Distry worker."""
+    print(f"Starting Distry worker on {host}:{port}...")
+    ws = WorkerServer(host=host, port=port)
+    ws.run()
+
+if __name__ == "__main__":
+    main()
